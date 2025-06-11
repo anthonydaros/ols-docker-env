@@ -1,0 +1,76 @@
+services:
+  mysql:
+    image: mariadb:11.4
+    command: ["--max-allowed-packet=512M"]
+    volumes:
+      - "./data/db:/var/lib/mysql:delegated"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    restart: always
+    networks:
+      - default
+    expose:
+      - "3306"
+      
+  litespeed:
+    image: litespeedtech/openlitespeed:${OLS_VERSION}-${PHP_VERSION}
+    container_name: litespeed
+    env_file:
+      - .env
+    volumes:
+      - ./lsws/conf:/usr/local/lsws/conf
+      - ./lsws/admin-conf:/usr/local/lsws/admin/conf
+      - ./bin/container:/usr/local/bin
+      - ./sites:/var/www/vhosts/
+      - ./acme:/root/.acme.sh/
+      - ./logs:/usr/local/lsws/logs/
+    ports:
+      - "8086:80"
+      - "8443:443"
+      - "8443:443/udp"
+      - "7080:7080"
+    restart: always
+    environment:
+      TZ: ${TimeZone}
+    networks:
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.embalabox.rule=Host(`embalabox.example.com`)"
+      - "traefik.http.routers.embalabox.entrypoints=web"
+      - "traefik.http.services.embalabox.loadbalancer.server.port=80"
+      
+  phpmyadmin:
+    image: bitnami/phpmyadmin:5.2.2
+    ports:
+      - "8081:8080"
+      - "8444:8443"
+    environment:
+        DATABASE_HOST: mysql
+        PMA_PORT: 8080
+        PMA_PMADB: phpmyadmin
+    restart: always
+    networks:
+      - default
+    depends_on:
+      - mysql
+      
+  redis:
+    image: "redis:alpine"
+    volumes:
+      - ./redis/data:/var/lib/redis
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    environment:
+      - REDIS_REPLICATION_MODE=master
+    restart: always
+    networks:
+      - default
+    expose:
+      - "6379"
+      
+networks:
+  default:
+    driver: bridge 
