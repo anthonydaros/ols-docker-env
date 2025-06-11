@@ -39,7 +39,7 @@ services:
   phpmyadmin:
     image: bitnami/phpmyadmin:5.2.2
     ports:
-      - 8080:8080
+      - 8084:8084
       - 8443:8443
     environment:
         DATABASE_HOST: mysql
