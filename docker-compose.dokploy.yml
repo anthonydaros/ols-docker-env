@@ -16,7 +16,7 @@ services:
       - "3306"
       
   litespeed:
-    image: litespeedtech/openlitespeed:${OLS_VERSION}-${PHP_VERSION}
+    image: litespeedtech/openlitespeed:latest
     container_name: litespeed
     env_file:
       - .env
