@@ -28,6 +28,7 @@ services:
       - "traefik.http.services.embalabox.loadbalancer.server.port=80"
     depends_on:
       - wordpress-installer
+      - litespeed-config
   wordpress-installer:
     image: litespeedtech/openlitespeed:latest
     container_name: wordpress-installer
@@ -40,6 +41,21 @@ services:
     networks:
       - default
     restart: "no"
+  litespeed-config:
+    image: litespeedtech/openlitespeed:latest
+    container_name: litespeed-config
+    env_file:
+      - .env
+    volumes:
+      - ./lsws/conf:/usr/local/lsws/conf
+      - ./sites:/var/www/vhosts/
+      - ./scripts/configure-litespeed.sh:/configure-litespeed.sh
+    command: ["/bin/bash", "/configure-litespeed.sh"]
+    networks:
+      - default
+    restart: "no"
+    depends_on:
+      - wordpress-installer
   phpmyadmin:
     image: bitnami/phpmyadmin:5.2.2
     ports:
