@@ -41,6 +41,23 @@ services:
       - "traefik.http.routers.embalabox.rule=Host(`embalabox.example.com`)"
       - "traefik.http.routers.embalabox.entrypoints=web"
       - "traefik.http.services.embalabox.loadbalancer.server.port=80"
+    depends_on:
+      - mysql
+      - wordpress-installer
+  wordpress-installer:
+    image: litespeedtech/openlitespeed:latest
+    container_name: wordpress-installer
+    env_file:
+      - .env
+    volumes:
+      - ./sites:/var/www/vhosts/
+      - ./scripts/install-wordpress.sh:/install-wordpress.sh
+    command: ["/bin/bash", "/install-wordpress.sh"]
+    depends_on:
+      - mysql
+    networks:
+      - default
+    restart: "no"
   phpmyadmin:
     image: bitnami/phpmyadmin:5.2.2
     ports:
