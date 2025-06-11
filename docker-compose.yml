@@ -29,7 +29,7 @@ services:
     ports:
       - 81:80
       - 444:444
-      - 443:443/udp
+      - 444:444/udp
       - 7080:7080
     restart: always
     environment:
