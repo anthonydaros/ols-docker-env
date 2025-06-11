@@ -27,10 +27,10 @@ services:
       - ./acme:/root/.acme.sh/
       - ./logs:/usr/local/lsws/logs/
     ports:
-      - 81:80
+      - 86:86
       - 444:444
       - 444:444/udp
-      - 7080:7080
+      - 7081:7081
     restart: always
     environment:
       TZ: ${TimeZone}
@@ -40,7 +40,7 @@ services:
     image: bitnami/phpmyadmin:5.2.2
     ports:
       - 8084:8084
-      - 8443:8443
+      - 8444:8444
     environment:
         DATABASE_HOST: mysql
     restart: always
