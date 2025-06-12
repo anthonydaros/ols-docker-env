@@ -109,6 +109,23 @@ services:
     depends_on:
       - litespeed
       - wordpress-installer
+
+  # Container para debug e correção do LiteSpeed (executa sob demanda)
+  litespeed-debug:
+    image: litespeedtech/openlitespeed:latest
+    container_name: litespeed-debug-v2
+    volumes:
+      - ./lsws/conf:/usr/local/lsws/conf
+      - ./sites:/var/www/vhosts/
+      - ./scripts:/scripts
+      - ./logs:/usr/local/lsws/logs/
+    command: ["/scripts/debug-and-fix-litespeed.sh"]
+    restart: "no"
+    networks:
+      - default
+    depends_on:
+      - litespeed
+      - litespeed-config
       
 networks:
   default:
