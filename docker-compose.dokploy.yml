@@ -1,6 +1,7 @@
 services:
   mysql:
     image: mariadb:11.4
+    container_name: mysql
     command: ["--max-allowed-packet=512M"]
     volumes:
       - "./data/db:/var/lib/mysql:delegated"
@@ -16,8 +17,8 @@ services:
       - "3306"
       
   litespeed:
-    image: litespeedtech/openlitespeed:latest
-    container_name: litespeed-emalabox-v3
+    image: litespeedtech/openlitespeed:${OLS_VERSION}-${PHP_VERSION}
+    container_name: litespeed
     env_file:
       - .env
     volumes:
@@ -39,15 +40,16 @@ services:
       - default
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.embalabox-v3.rule=Host(`embalabox.anthonymax.com`)"
-      - "traefik.http.routers.embalabox-v3.entrypoints=web"
-      - "traefik.http.services.embalabox-v3.loadbalancer.server.port=80"
-      - "traefik.http.routers.embalabox-v3-secure.rule=Host(`embalabox.anthonymax.com`)"
-      - "traefik.http.routers.embalabox-v3-secure.entrypoints=websecure"
-      - "traefik.http.routers.embalabox-v3-secure.tls=true"
+      - "traefik.http.routers.embalabox-oficial.rule=Host(`embalabox.anthonymax.com`)"
+      - "traefik.http.routers.embalabox-oficial.entrypoints=web"
+      - "traefik.http.services.embalabox-oficial.loadbalancer.server.port=80"
+      - "traefik.http.routers.embalabox-oficial-secure.rule=Host(`embalabox.anthonymax.com`)"
+      - "traefik.http.routers.embalabox-oficial-secure.entrypoints=websecure"
+      - "traefik.http.routers.embalabox-oficial-secure.tls=true"
       
   phpmyadmin:
     image: bitnami/phpmyadmin:5.2.2
+    container_name: phpmyadmin
     ports:
       - "8081:8080"
       - "8444:8443"
@@ -63,6 +65,7 @@ services:
       
   redis:
     image: "redis:alpine"
+    container_name: redis
     volumes:
       - ./redis/data:/var/lib/redis
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
@@ -74,41 +77,27 @@ services:
     expose:
       - "6379"
 
-  # Container para instalar WordPress (executa uma vez)
-  wordpress-installer:
-    image: wordpress:cli-php8.3
-    container_name: wordpress-installer-v3
+  # Setup inicial usando scripts oficiais
+  setup:
+    image: litespeedtech/openlitespeed:${OLS_VERSION}-${PHP_VERSION}
+    container_name: setup
     volumes:
-      - ./sites/localhost/html:/var/www/html
+      - ./lsws/conf:/usr/local/lsws/conf
+      - ./sites:/var/www/vhosts/
       - ./scripts:/scripts
+      - ./bin:/usr/local/bin
     environment:
       WORDPRESS_DB_HOST: ${DB_HOST}:${DB_PORT}
       WORDPRESS_DB_NAME: ${DB_NAME}
       WORDPRESS_DB_USER: ${DB_USER}
       WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
-      WORDPRESS_CONFIG_EXTRA: |
-        define('WP_HOME', 'http://embalabox.anthonymax.com');
-        define('WP_SITEURL', 'http://embalabox.anthonymax.com');
-    command: ["/scripts/install-wordpress.sh"]
-    restart: "no"
-    networks:
-      - default
-
-  # Container para configurar LiteSpeed com debug integrado (executa uma vez)  
-  litespeed-config:
-    image: litespeedtech/openlitespeed:latest
-    container_name: litespeed-config-v3
-    volumes:
-      - ./lsws/conf:/usr/local/lsws/conf
-      - ./sites:/var/www/vhosts/
-      - ./scripts:/scripts
-    command: ["/scripts/configure-litespeed.sh"]
+      DOMAIN: embalabox.anthonymax.com
+    command: ["/scripts/setup-oficial.sh"]
     restart: "no"
     networks:
       - default
     depends_on:
       - litespeed
-      - wordpress-installer
       
 networks:
   default:
