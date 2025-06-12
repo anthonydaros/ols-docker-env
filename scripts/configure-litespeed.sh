@@ -5,12 +5,13 @@ set -e
 
 echo "🔧 Configurando OpenLiteSpeed Virtual Host..."
 
-# Criar diretórios necessários
+# Criar diretórios necessários PRIMEIRO
 mkdir -p /usr/local/lsws/logs
 mkdir -p /usr/local/lsws/conf/vhosts/localhost
+mkdir -p /var/www/vhosts/localhost/logs
 
 # Aguardar OpenLiteSpeed estar rodando
-sleep 10
+sleep 15
 
 # Verificar se WordPress existe antes de sobrescrever
 SITE_DIR="/var/www/vhosts/localhost/html"
@@ -21,6 +22,9 @@ else
     echo "⚠️ WordPress não encontrado em $SITE_DIR"
     WP_EXISTS=false
 fi
+
+# FORÇA RECRIAÇÃO COMPLETA DA CONFIGURAÇÃO
+echo "🔧 FORÇANDO recriação completa da configuração..."
 
 # Configurar virtual host para localhost
 VHOST_CONF="/usr/local/lsws/conf/vhosts/localhost/vhconf.conf"
@@ -33,13 +37,13 @@ vhDomain                  *
 vhAliases                 
 enableGzip                1
 
-errorlog $VH_ROOT/logs/error.log {
+errorlog /var/www/vhosts/localhost/logs/error.log {
   useServer               1
   logLevel                DEBUG
   rollingSize             10M
 }
 
-accesslog $VH_ROOT/logs/access.log {
+accesslog /var/www/vhosts/localhost/logs/access.log {
   useServer               0
   logFormat               "%h %l %u %t \"%r\" %>s %b"
   logHeaders              5
@@ -72,19 +76,35 @@ vhssl  {
 }
 EOF
 
-# Atualizar configuração principal do httpd apenas se necessário
-if ! grep -q "virtualhost localhost" "$HTTPD_CONF"; then
-    echo "📝 Atualizando configuração principal..."
-    
-    # Backup da configuração original
-    cp "$HTTPD_CONF" "$HTTPD_CONF.backup"
-    
-    # Remover configurações antigas de listener se existirem
-    sed -i '/listener.*{/,/^}/d' "$HTTPD_CONF"
-    sed -i '/virtualhost.*{/,/^}/d' "$HTTPD_CONF"
-    
-    # Adicionar nova configuração
-    cat >> "$HTTPD_CONF" << 'EOF'
+# FORÇA RECRIAÇÃO do httpd_config.conf
+echo "📝 RECRIANDO httpd_config.conf COMPLETAMENTE..."
+
+cat > "$HTTPD_CONF" << 'EOF'
+serverRoot              /usr/local/lsws/
+user                    www-data
+group                   www-data
+priority                0
+inMemBufSize            60M
+swappingDir             /tmp/lshttpd/swap
+autoFix503              1
+
+mime                    /usr/local/lsws/conf/mime.properties
+
+showVersionNumber       0
+enableLVE               0
+
+adminEmails             admin@localhost
+adminRoot               /usr/local/lsws/admin/
+
+indexFiles              index.html, index.php
+autoIndex               0
+
+expires  {
+  enableExpires           1
+  expiresByType           image/*=A604800,text/css=A604800,application/x-javascript=A604800,application/javascript=A604800,font/*=A604800,application/x-font-ttf=A604800
+}
+
+autoLoadHtaccess        1
 
 virtualhost localhost {
   vhRoot                  /var/www/vhosts/localhost/
@@ -109,7 +129,6 @@ listener HTTPS {
   map                     localhost *
 }
 EOF
-fi
 
 # Gerar certificados SSL auto-assinados se não existirem
 if [ ! -f "/usr/local/lsws/conf/cert/localhost.crt" ]; then
@@ -122,14 +141,11 @@ if [ ! -f "/usr/local/lsws/conf/cert/localhost.crt" ]; then
         -subj "/C=BR/ST=SP/L=SaoPaulo/O=EmalaBox/CN=localhost"
 fi
 
-# Criar logs directory se não existir
-mkdir -p /var/www/vhosts/localhost/logs
-
 # Configurar permissões
 echo "🔧 Configurando permissões..."
-chown -R lsadm:lsadm /usr/local/lsws/conf/
+chown -R lsadm:lsadm /usr/local/lsws/conf/ 2>/dev/null || echo "Usuário lsadm não encontrado, usando root"
 chmod -R 755 /usr/local/lsws/conf/
-chown -R www-data:www-data /var/www/vhosts/
+chown -R www-data:www-data /var/www/vhosts/ 2>/dev/null || chown -R nobody:nogroup /var/www/vhosts/
 chmod -R 755 /var/www/vhosts/
 
 # Só criar página de teste se WordPress NÃO existir
@@ -138,12 +154,14 @@ if [ "$WP_EXISTS" = false ]; then
     mkdir -p /var/www/vhosts/localhost/html
     cat > /var/www/vhosts/localhost/html/index.php << 'EOFTEST'
 <?php
+echo "<h1>🎉 OpenLiteSpeed funcionando!</h1>";
+echo "<p>Virtual host configurado com sucesso.</p>";
+echo "<p><strong>Document Root:</strong> " . $_SERVER['DOCUMENT_ROOT'] . "</p>";
+echo "<p><strong>Server:</strong> " . $_SERVER['SERVER_SOFTWARE'] . "</p>";
+echo "<hr>";
 phpinfo();
-echo "<hr><h2>EmalaBox Test Page</h2>";
-echo "<p>If you see this page, OpenLiteSpeed is working correctly!</p>";
-echo "<p><a href='/wp-admin'>WordPress Admin</a></p>";
 EOFTEST
-    chown www-data:www-data /var/www/vhosts/localhost/html/index.php
+    chown www-data:www-data /var/www/vhosts/localhost/html/index.php 2>/dev/null || chown nobody:nogroup /var/www/vhosts/localhost/html/index.php
 else
     echo "✅ Mantendo WordPress existente"
 fi
@@ -158,10 +176,33 @@ else
     ls -la /var/www/vhosts/localhost/html/ || echo "Diretório não existe"
 fi
 
-# Graceful restart do OpenLiteSpeed
-echo "🔄 Reiniciando OpenLiteSpeed (graceful)..."
+# MÚLTIPLAS tentativas de restart
+echo "🔄 Reiniciando OpenLiteSpeed (múltiplas tentativas)..."
+
+# Tentativa 1: Graceful restart
 /usr/local/lsws/bin/lswsctrl restart
+
+# Aguardar um pouco
+sleep 5
+
+# Tentativa 2: Stop e start
+/usr/local/lsws/bin/lswsctrl stop
+sleep 3
+/usr/local/lsws/bin/lswsctrl start
+
+# Verificar se está rodando
+echo "📊 Verificando processos do LiteSpeed:"
+ps aux | grep lshttpd || echo "❌ LiteSpeed não encontrado nos processos"
 
 echo "✅ OpenLiteSpeed configurado com sucesso!"
 echo "🌐 Teste: http://103.199.185.165:8086/"
-echo "🔒 HTTPS: https://103.199.185.165:8443/" 
+echo "🔒 HTTPS: https://103.199.185.165:8443/"
+
+# DEBUG ADICIONAL
+echo ""
+echo "🔍 DEBUG - Verificando configuração final:"
+echo "📁 Arquivos de configuração:"
+ls -la /usr/local/lsws/conf/vhosts/localhost/ || echo "Diretório vhost não existe"
+echo ""
+echo "📁 Document root:"
+ls -la /var/www/vhosts/localhost/html/ | head -5 || echo "Document root não existe" 

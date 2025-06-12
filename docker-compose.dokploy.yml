@@ -17,7 +17,7 @@ services:
       
   litespeed:
     image: litespeedtech/openlitespeed:latest
-    container_name: litespeed-emalabox-v2
+    container_name: litespeed-emalabox-v3
     env_file:
       - .env
     volumes:
@@ -39,12 +39,12 @@ services:
       - default
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.embalabox-v2.rule=Host(`embalabox.anthonymax.com`)"
-      - "traefik.http.routers.embalabox-v2.entrypoints=web"
-      - "traefik.http.services.embalabox-v2.loadbalancer.server.port=80"
-      - "traefik.http.routers.embalabox-v2-secure.rule=Host(`embalabox.anthonymax.com`)"
-      - "traefik.http.routers.embalabox-v2-secure.entrypoints=websecure"
-      - "traefik.http.routers.embalabox-v2-secure.tls=true"
+      - "traefik.http.routers.embalabox-v3.rule=Host(`embalabox.anthonymax.com`)"
+      - "traefik.http.routers.embalabox-v3.entrypoints=web"
+      - "traefik.http.services.embalabox-v3.loadbalancer.server.port=80"
+      - "traefik.http.routers.embalabox-v3-secure.rule=Host(`embalabox.anthonymax.com`)"
+      - "traefik.http.routers.embalabox-v3-secure.entrypoints=websecure"
+      - "traefik.http.routers.embalabox-v3-secure.tls=true"
       
   phpmyadmin:
     image: bitnami/phpmyadmin:5.2.2
@@ -77,7 +77,7 @@ services:
   # Container para instalar WordPress (executa uma vez)
   wordpress-installer:
     image: wordpress:cli-php8.3
-    container_name: wordpress-installer-v2
+    container_name: wordpress-installer-v3
     volumes:
       - ./sites/localhost/html:/var/www/html
       - ./scripts:/scripts
@@ -94,10 +94,10 @@ services:
     networks:
       - default
 
-  # Container para configurar LiteSpeed (executa uma vez)  
+  # Container para configurar LiteSpeed com debug integrado (executa uma vez)  
   litespeed-config:
     image: litespeedtech/openlitespeed:latest
-    container_name: litespeed-config-v2
+    container_name: litespeed-config-v3
     volumes:
       - ./lsws/conf:/usr/local/lsws/conf
       - ./sites:/var/www/vhosts/
@@ -108,24 +108,6 @@ services:
       - default
     depends_on:
       - litespeed
-      - wordpress-installer
-
-  # Container para debug e correção automática do LiteSpeed
-  litespeed-debug:
-    image: litespeedtech/openlitespeed:latest
-    container_name: litespeed-debug-v2
-    volumes:
-      - ./lsws/conf:/usr/local/lsws/conf
-      - ./sites:/var/www/vhosts/
-      - ./scripts:/scripts
-      - ./logs:/usr/local/lsws/logs/
-    command: ["/scripts/auto-debug-litespeed.sh"]
-    restart: "no"
-    networks:
-      - default
-    depends_on:
-      - litespeed
-      - litespeed-config
       - wordpress-installer
       
 networks:
