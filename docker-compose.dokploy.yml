@@ -17,7 +17,7 @@ services:
       
   litespeed:
     image: litespeedtech/openlitespeed:latest
-    container_name: litespeed
+    container_name: litespeed-emalabox-v2
     env_file:
       - .env
     volumes:
@@ -39,9 +39,12 @@ services:
       - default
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.embalabox.rule=Host(`embalabox.example.com`)"
-      - "traefik.http.routers.embalabox.entrypoints=web"
-      - "traefik.http.services.embalabox.loadbalancer.server.port=80"
+      - "traefik.http.routers.embalabox-v2.rule=Host(`embalabox.anthonymax.com`)"
+      - "traefik.http.routers.embalabox-v2.entrypoints=web"
+      - "traefik.http.services.embalabox-v2.loadbalancer.server.port=80"
+      - "traefik.http.routers.embalabox-v2-secure.rule=Host(`embalabox.anthonymax.com`)"
+      - "traefik.http.routers.embalabox-v2-secure.entrypoints=websecure"
+      - "traefik.http.routers.embalabox-v2-secure.tls=true"
       
   phpmyadmin:
     image: bitnami/phpmyadmin:5.2.2
@@ -70,6 +73,42 @@ services:
       - default
     expose:
       - "6379"
+
+  # Container para instalar WordPress (executa uma vez)
+  wordpress-installer:
+    image: wordpress:cli-php8.3
+    container_name: wordpress-installer-v2
+    volumes:
+      - ./sites/localhost/html:/var/www/html
+      - ./scripts:/scripts
+    environment:
+      WORDPRESS_DB_HOST: ${DB_HOST}:${DB_PORT}
+      WORDPRESS_DB_NAME: ${DB_NAME}
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'http://embalabox.anthonymax.com');
+        define('WP_SITEURL', 'http://embalabox.anthonymax.com');
+    command: ["/scripts/install-wordpress.sh"]
+    restart: "no"
+    networks:
+      - default
+
+  # Container para configurar LiteSpeed (executa uma vez)  
+  litespeed-config:
+    image: litespeedtech/openlitespeed:latest
+    container_name: litespeed-config-v2
+    volumes:
+      - ./lsws/conf:/usr/local/lsws/conf
+      - ./sites:/var/www/vhosts/
+      - ./scripts:/scripts
+    command: ["/scripts/configure-litespeed.sh"]
+    restart: "no"
+    networks:
+      - default
+    depends_on:
+      - litespeed
+      - wordpress-installer
       
 networks:
   default:
